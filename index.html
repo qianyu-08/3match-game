@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>3D Match Complete</title>
+<title>3D Match Fixed</title>
 <style>
   body { margin:0; overflow:hidden; touch-action:none; }
 </style>
@@ -18,9 +18,9 @@ const colors = [0xff4444,0x44aaff,0x44ff44,0xffff44,0xaa44ff];
 let scene, camera, renderer;
 let grid = [];
 let cubes = [];
+let pickables = [];
 
 let startCell = null;
-let isDown = false;
 
 init();
 animate();
@@ -36,9 +36,7 @@ function init(){
   renderer.setSize(window.innerWidth, window.innerHeight);
   document.body.appendChild(renderer.domElement);
 
-  const light = new THREE.DirectionalLight(0xffffff, 1);
-  light.position.set(5,10,5);
-  scene.add(light);
+  scene.add(new THREE.DirectionalLight(0xffffff, 1).position.set(5,10,5));
 
   for(let y=0;y<size;y++){
     grid[y]=[];
@@ -46,7 +44,6 @@ function init(){
 
     for(let x=0;x<size;x++){
       let c = rand();
-
       grid[y][x]=c;
 
       let cube = new THREE.Mesh(
@@ -56,7 +53,9 @@ function init(){
 
       cube.position.set(x,0,y);
       scene.add(cube);
+
       cubes[y][x]=cube;
+      pickables.push(cube);
     }
   }
 
@@ -68,7 +67,7 @@ function rand(){
   return Math.floor(Math.random()*colors.length);
 }
 
-// セル取得
+// ★ 安定版セル取得
 function getCell(e){
   let mouse = new THREE.Vector2(
     (e.clientX/window.innerWidth)*2-1,
@@ -78,42 +77,35 @@ function getCell(e){
   let ray = new THREE.Raycaster();
   ray.setFromCamera(mouse,camera);
 
-  let hits = ray.intersectObjects(scene.children);
+  let hits = ray.intersectObjects(pickables);
 
-  for(let h of hits){
-    let p = h.object.position;
-    return {x:Math.round(p.x), y:Math.round(p.z)};
-  }
-  return null;
+  if(hits.length === 0) return null;
+
+  let p = hits[0].object.position;
+
+  return {x:Math.round(p.x), y:Math.round(p.z)};
 }
 
-// ドラッグ開始
 function onDown(e){
   startCell = getCell(e);
-  isDown = true;
 }
 
-// ドラッグ終了
 function onUp(e){
-  if(!isDown) return;
-  isDown = false;
-
   let endCell = getCell(e);
+
   if(!startCell || !endCell) return;
 
   let dx = endCell.x - startCell.x;
   let dy = endCell.y - startCell.y;
 
-  // 1マスだけ許可
   if(Math.abs(dx)+Math.abs(dy) === 1){
-    swap(startCell, endCell);
+    swap(startCell,endCell);
     resolve();
   }
 
   startCell = null;
 }
 
-// スワップ
 function swap(a,b){
   let t = grid[a.y][a.x];
   grid[a.y][a.x] = grid[b.y][b.x];
@@ -122,7 +114,6 @@ function swap(a,b){
   update();
 }
 
-// 色更新
 function update(){
   for(let y=0;y<size;y++){
     for(let x=0;x<size;x++){
@@ -131,11 +122,10 @@ function update(){
   }
 }
 
-// マッチ処理（簡易）
+// ★ 超簡易マッチ処理
 function resolve(){
   let matched = [];
 
-  // 横
   for(let y=0;y<size;y++){
     for(let x=0;x<size-2;x++){
       let c = grid[y][x];
@@ -145,7 +135,6 @@ function resolve(){
     }
   }
 
-  // 縦
   for(let x=0;x<size;x++){
     for(let y=0;y<size-2;y++){
       let c = grid[y][x];
