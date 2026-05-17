@@ -2,9 +2,9 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>3D Match Drag</title>
+<title>3D Match Complete</title>
 <style>
-  body { margin:0; overflow:hidden; }
+  body { margin:0; overflow:hidden; touch-action:none; }
 </style>
 </head>
 <body>
@@ -19,9 +19,8 @@ let scene, camera, renderer;
 let grid = [];
 let cubes = [];
 
-let selected = null;
-let mouseDownPos = null;
-let dragging = false;
+let startCell = null;
+let isDown = false;
 
 init();
 animate();
@@ -33,7 +32,7 @@ function init(){
   camera.position.set(6,6,6);
   camera.lookAt(2,0,2);
 
-  renderer = new THREE.WebGLRenderer();
+  renderer = new THREE.WebGLRenderer({antialias:true});
   renderer.setSize(window.innerWidth, window.innerHeight);
   document.body.appendChild(renderer.domElement);
 
@@ -47,6 +46,7 @@ function init(){
 
     for(let x=0;x<size;x++){
       let c = rand();
+
       grid[y][x]=c;
 
       let cube = new THREE.Mesh(
@@ -60,15 +60,15 @@ function init(){
     }
   }
 
-  window.addEventListener("mousedown", onDown);
-  window.addEventListener("mouseup", onUp);
+  window.addEventListener("pointerdown", onDown);
+  window.addEventListener("pointerup", onUp);
 }
 
 function rand(){
   return Math.floor(Math.random()*colors.length);
 }
 
-// レイキャストでセル取得
+// セル取得
 function getCell(e){
   let mouse = new THREE.Vector2(
     (e.clientX/window.innerWidth)*2-1,
@@ -89,40 +89,40 @@ function getCell(e){
 
 // ドラッグ開始
 function onDown(e){
-  mouseDownPos = getCell(e);
-  dragging = true;
+  startCell = getCell(e);
+  isDown = true;
 }
 
-// ドラッグ終了（ここが本体）
+// ドラッグ終了
 function onUp(e){
-  if(!dragging) return;
-  dragging = false;
+  if(!isDown) return;
+  isDown = false;
 
-  let end = getCell(e);
-  if(!mouseDownPos || !end) return;
+  let endCell = getCell(e);
+  if(!startCell || !endCell) return;
 
-  let dx = end.x - mouseDownPos.x;
-  let dy = end.y - mouseDownPos.y;
+  let dx = endCell.x - startCell.x;
+  let dy = endCell.y - startCell.y;
 
-  // 1マスだけのスワイプ判定
+  // 1マスだけ許可
   if(Math.abs(dx)+Math.abs(dy) === 1){
-    swap(mouseDownPos, end);
+    swap(startCell, endCell);
     resolve();
   }
 
-  mouseDownPos = null;
+  startCell = null;
 }
 
 // スワップ
 function swap(a,b){
   let t = grid[a.y][a.x];
-  grid[a.y][a.x]=grid[b.y][b.x];
-  grid[b.y][b.x]=t;
+  grid[a.y][a.x] = grid[b.y][b.x];
+  grid[b.y][b.x] = t;
 
   update();
 }
 
-// 更新描画
+// 色更新
 function update(){
   for(let y=0;y<size;y++){
     for(let x=0;x<size;x++){
@@ -131,10 +131,11 @@ function update(){
   }
 }
 
-// マッチ処理（簡易版）
+// マッチ処理（簡易）
 function resolve(){
   let matched = [];
 
+  // 横
   for(let y=0;y<size;y++){
     for(let x=0;x<size-2;x++){
       let c = grid[y][x];
@@ -144,6 +145,7 @@ function resolve(){
     }
   }
 
+  // 縦
   for(let x=0;x<size;x++){
     for(let y=0;y<size-2;y++){
       let c = grid[y][x];
