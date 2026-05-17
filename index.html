@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>3D Match</title>
+<title>3D Match Drag</title>
 <style>
   body { margin:0; overflow:hidden; }
 </style>
@@ -18,7 +18,10 @@ const colors = [0xff4444,0x44aaff,0x44ff44,0xffff44,0xaa44ff];
 let scene, camera, renderer;
 let grid = [];
 let cubes = [];
+
 let selected = null;
+let mouseDownPos = null;
+let dragging = false;
 
 init();
 animate();
@@ -28,7 +31,7 @@ function init(){
 
   camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 1000);
   camera.position.set(6,6,6);
-  camera.lookAt(2,2,2);
+  camera.lookAt(2,0,2);
 
   renderer = new THREE.WebGLRenderer();
   renderer.setSize(window.innerWidth, window.innerHeight);
@@ -43,53 +46,74 @@ function init(){
     cubes[y]=[];
 
     for(let x=0;x<size;x++){
-      let c = Math.floor(Math.random()*colors.length);
+      let c = rand();
       grid[y][x]=c;
 
-      let geo = new THREE.BoxGeometry(0.9,0.9,0.9);
-      let mat = new THREE.MeshStandardMaterial({color:colors[c]});
-      let cube = new THREE.Mesh(geo,mat);
+      let cube = new THREE.Mesh(
+        new THREE.BoxGeometry(0.9,0.9,0.9),
+        new THREE.MeshStandardMaterial({color:colors[c]})
+      );
 
       cube.position.set(x,0,y);
       scene.add(cube);
-
       cubes[y][x]=cube;
     }
   }
 
-  window.addEventListener("click", onClick);
+  window.addEventListener("mousedown", onDown);
+  window.addEventListener("mouseup", onUp);
 }
 
-function onClick(e){
+function rand(){
+  return Math.floor(Math.random()*colors.length);
+}
+
+// レイキャストでセル取得
+function getCell(e){
   let mouse = new THREE.Vector2(
     (e.clientX/window.innerWidth)*2-1,
     -(e.clientY/window.innerHeight)*2+1
   );
 
-  let raycaster = new THREE.Raycaster();
-  raycaster.setFromCamera(mouse,camera);
+  let ray = new THREE.Raycaster();
+  ray.setFromCamera(mouse,camera);
 
-  let hits = raycaster.intersectObjects(scene.children);
+  let hits = ray.intersectObjects(scene.children);
 
   for(let h of hits){
-    let pos = h.object.position;
-
-    let x = Math.round(pos.x);
-    let y = Math.round(pos.z);
-
-    if(!selected){
-      selected = {x,y};
-    } else {
-      if(Math.abs(selected.x-x)+Math.abs(selected.y-y)==1){
-        swap(selected,{x,y});
-        resolve();
-      }
-      selected=null;
-    }
-    break;
+    let p = h.object.position;
+    return {x:Math.round(p.x), y:Math.round(p.z)};
   }
+  return null;
 }
 
+// ドラッグ開始
+function onDown(e){
+  mouseDownPos = getCell(e);
+  dragging = true;
+}
+
+// ドラッグ終了（ここが本体）
+function onUp(e){
+  if(!dragging) return;
+  dragging = false;
+
+  let end = getCell(e);
+  if(!mouseDownPos || !end) return;
+
+  let dx = end.x - mouseDownPos.x;
+  let dy = end.y - mouseDownPos.y;
+
+  // 1マスだけのスワイプ判定
+  if(Math.abs(dx)+Math.abs(dy) === 1){
+    swap(mouseDownPos, end);
+    resolve();
+  }
+
+  mouseDownPos = null;
+}
+
+// スワップ
 function swap(a,b){
   let t = grid[a.y][a.x];
   grid[a.y][a.x]=grid[b.y][b.x];
@@ -98,22 +122,23 @@ function swap(a,b){
   update();
 }
 
+// 更新描画
 function update(){
   for(let y=0;y<size;y++){
     for(let x=0;x<size;x++){
-      let c = grid[y][x];
-      cubes[y][x].material.color.setHex(colors[c]);
+      cubes[y][x].material.color.setHex(colors[grid[y][x]]);
     }
   }
 }
 
+// マッチ処理（簡易版）
 function resolve(){
-  let matched=[];
+  let matched = [];
 
   for(let y=0;y<size;y++){
     for(let x=0;x<size-2;x++){
-      let c=grid[y][x];
-      if(c==grid[y][x+1] && c==grid[y][x+2]){
+      let c = grid[y][x];
+      if(c===grid[y][x+1] && c===grid[y][x+2]){
         matched.push([x,y],[x+1,y],[x+2,y]);
       }
     }
@@ -121,17 +146,17 @@ function resolve(){
 
   for(let x=0;x<size;x++){
     for(let y=0;y<size-2;y++){
-      let c=grid[y][x];
-      if(c==grid[y+1][x] && c==grid[y+2][x]){
+      let c = grid[y][x];
+      if(c===grid[y+1][x] && c===grid[y+2][x]){
         matched.push([x,y],[x,y+1],[x,y+2]);
       }
     }
   }
 
-  if(matched.length==0) return;
+  if(matched.length===0) return;
 
   for(let m of matched){
-    grid[m[1]][m[0]] = Math.floor(Math.random()*colors.length);
+    grid[m[1]][m[0]] = rand();
   }
 
   update();
